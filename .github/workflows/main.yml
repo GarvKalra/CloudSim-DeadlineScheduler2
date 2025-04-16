@@ -27,4 +27,4 @@ jobs:
 
       - name: Run AWS_Lambda_Simulation
         run: |
-          java -cp "out:lib/*" cloudsim.simulations.AWS_Lambda_Simulation
+          java -cp "out:lib/*" cloudsim/simulations/AWS_Lambda_Simulation
