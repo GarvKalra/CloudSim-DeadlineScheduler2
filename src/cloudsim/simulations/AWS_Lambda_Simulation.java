@@ -1,24 +1,12 @@
-package cloudsim.simulations;
+package com.garv.cloudsim;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-
-import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.core.CloudSim;
-import java.util.*;
-import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
-
-import java.text.DecimalFormat;
+import org.cloudbus.cloudsim.provisioners.*;
 import java.util.*;
 
 public class AWS_Lambda_Simulation {
-    
-    // Warm start duration in seconds
+
     public static void main(String[] args) throws Exception {
         int numUsers = 1;
         Calendar calendar = Calendar.getInstance();
@@ -76,33 +64,29 @@ public class AWS_Lambda_Simulation {
                     + " | Status: " + dCloudlet.getStatus()
                     + " | Deadline: " + deadline
                     + " | Finish Time: " + finishTime
-                    + " | " + (metDeadline ? "✅ Met Deadline" : "❌ Missed Deadline"));}
+                    + " | " + (metDeadline ? "✅ Met Deadline" : "❌ Missed Deadline"));
+        }
     }
 
     private static void assignCloudletsToVMs(DeadlineAwareBroker broker, List<Cloudlet> cloudletList, List<Vm> vmlist) {
-        // VM load tracking (how many cloudlets assigned to each VM)
         Map<Integer, List<Cloudlet>> vmLoads = new HashMap<>();
         for (Vm vm : vmlist) {
             vmLoads.put(vm.getId(), new ArrayList<>());
         }
 
-        // Assign cloudlets based on deadlines and VM load
         for (Cloudlet cloudlet : cloudletList) {
             Vm selectedVm = null;
             long earliestFinishTime = Long.MAX_VALUE;
 
-            // Find the VM with least load and earliest finish time
             for (Vm vm : vmlist) {
                 List<Cloudlet> assignedCloudlets = vmLoads.get(vm.getId());
                 long vmFinishTime = getEstimatedFinishTime(assignedCloudlets, cloudlet, vm);
-                // Choose VM with the earliest finish time and least load
                 if (vmFinishTime < earliestFinishTime) {
                     earliestFinishTime = vmFinishTime;
                     selectedVm = vm;
                 }
             }
 
-            // Assign cloudlet to the selected VM
             if (selectedVm != null) {
                 vmLoads.get(selectedVm.getId()).add(cloudlet);
                 broker.bindCloudletToVm(cloudlet.getCloudletId(), selectedVm.getId());
@@ -115,19 +99,14 @@ public class AWS_Lambda_Simulation {
         for (Cloudlet cl : assignedCloudlets) {
             totalLength += cl.getCloudletLength();
         }
-
-        // Add the new cloudlet length
         totalLength += newCloudlet.getCloudletLength();
-
-        // Estimate time = total instructions / MIPS
         return (long) (totalLength / vm.getMips());
     }
 
     private static Datacenter createDatacenter(String name) throws Exception {
         List<Host> hostList = new ArrayList<>();
-
         List<Pe> peList = new ArrayList<>();
-        peList.add(new Pe(0, new PeProvisionerSimple(2000))); // MIPS
+        peList.add(new Pe(0, new PeProvisionerSimple(2000)));
 
         Host host = new Host(
                 0,
@@ -137,7 +116,6 @@ public class AWS_Lambda_Simulation {
                 peList,
                 new VmSchedulerTimeShared(peList)
         );
-
         hostList.add(host);
 
         DatacenterCharacteristics characteristics = new DatacenterCharacteristics(
@@ -148,5 +126,41 @@ public class AWS_Lambda_Simulation {
                 new VmAllocationPolicySimple(hostList),
                 new LinkedList<Storage>(), 0);
     }
-    
+
+    // Inner class: Deadline-Aware Broker
+    public static class DeadlineAwareBroker extends DatacenterBroker {
+        public DeadlineAwareBroker(String name) throws Exception {
+            super(name);
+        }
+
+        @Override
+        protected void submitCloudlets() {
+            getCloudletList().sort(Comparator.comparingDouble(c -> ((DeadlineCloudlet) c).getDeadline()));
+            super.submitCloudlets();
+        }
+    }
+
+    // Inner class: Deadline Cloudlet
+    public static class DeadlineCloudlet extends Cloudlet {
+        private double deadline;
+
+        public DeadlineCloudlet(int cloudletId, long cloudletLength, int pesNumber,
+                                long fileSize, long outputSize,
+                                UtilizationModel utilizationModelCpu,
+                                UtilizationModel utilizationModelRam,
+                                UtilizationModel utilizationModelBw,
+                                double deadline) {
+            super(cloudletId, cloudletLength, pesNumber, fileSize, outputSize,
+                    utilizationModelCpu, utilizationModelRam, utilizationModelBw);
+            this.deadline = deadline;
+        }
+
+        public double getDeadline() {
+            return deadline;
+        }
+
+        public void setDeadline(double deadline) {
+            this.deadline = deadline;
+        }
+    }
 }
