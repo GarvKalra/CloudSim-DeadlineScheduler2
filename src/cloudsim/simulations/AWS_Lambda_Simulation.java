@@ -1,4 +1,4 @@
-package com.garv.cloudsim;
+package cloudsim.simulation;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
